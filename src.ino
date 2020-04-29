@@ -1,7 +1,6 @@
 
 //------------------------------------------------- A&R Smart ----------------------------------------------//
 // Réalisé par : Aroua SAIDAOUI & Rihab JOUINI
-// Classe : 3AGE2
 // Année universitaire : 2019-2020
 //-------------------------------------------------------------------------------------------------------------//
 //----------------------------------------------- Includes ----------------------------------------------------//
@@ -16,8 +15,8 @@ char ssid[] = "rihab";
 const char* password = "*****";
 const char* mqtt_server = "tailor.cloudmqtt.com"; 
 const int  mqttPort = 11289 ;
-const char* mqttUser = "vganrcth";
-const char* mqttPassword ="*****";
+const char* mqttUser = "*****";
+const char* mqttPassword ="****";
 //------------------------------------------ All Program Variables ----------------------------------------------//
 long lastMsg = 0;
 long lastMsg1 = 0;
@@ -58,7 +57,9 @@ TwoWire *dev_i2c;
 #define I2C2_SDA    PB11
 
 HTS221Sensor  *Humidity_Temper;
-SemaphoreHandle_t blockly_farm_sem;
+SemaphoreHandle_t gas_sem;
+SemaphoreHandle_t MS_sem;
+SemaphoreHandle_t dht_sem;
 
 
 
@@ -134,18 +135,30 @@ void setup() {
   Humidity_Temper->Enable();
   while (!Serial) {
   }
-   if ( blockly_farm_sem == NULL )  // Check to confirm that the Serial Semaphore has not already been created.
+   if ( gas_sem == NULL )  // Check to confirm that the Serial Semaphore has not already been created.
   {
-    blockly_farm_sem = xSemaphoreCreateMutex();  // Create a mutex semaphore we will use to manage the Serial Port
-    if ( ( blockly_farm_sem ) != NULL )
-      xSemaphoreGive( ( blockly_farm_sem ) );  // Make the Serial Port available for use, by "Giving" the Semaphore.
+    gas_sem = xSemaphoreCreateMutex();  // Create a mutex semaphore we will use to manage the Serial Port
+    if ( ( gas_sem ) != NULL )
+      xSemaphoreGive( ( gas_sem ) );  // Make the Serial Port available for use, by "Giving" the Semaphore.
+  }
+   if ( dht_sem == NULL )  // Check to confirm that the Serial Semaphore has not already been created.
+  {
+    dht_sem = xSemaphoreCreateMutex();  // Create a mutex semaphore we will use to manage the Serial Port
+    if ( ( dht_sem ) != NULL )
+      xSemaphoreGive( ( dht_sem ) );  // Make the Serial Port available for use, by "Giving" the Semaphore.
+  }
+  if ( MS_sem == NULL )  // Check to confirm that the Serial Semaphore has not already been created.
+  {
+    MS_sem = xSemaphoreCreateMutex();  // Create a mutex semaphore we will use to manage the Serial Port
+    if ( ( MS_sem ) != NULL )
+      xSemaphoreGive( ( MS_sem ) );  // Make the Serial Port available for use, by "Giving" the Semaphore.
   }
   xTaskCreate(
     TaskTemperature
     ,  (const portCHAR *)"Tempreture"   // A name just for humans
     ,  256  // This stack size can be checked & adjusted by reading the Stack Highwater
     ,  NULL
-    ,  1 // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+    ,  2 // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
     ,  NULL );
 
     
@@ -178,7 +191,7 @@ void TaskTemperature(void *pvParameters)  // This is a task.
 
   for (;;) // A Task shall never return or exit
   {
-    if ( xSemaphoreTake( blockly_farm_sem, ( TickType_t ) 5 ) == pdTRUE )
+    if ( xSemaphoreTake( dht_sem, ( TickType_t ) 5 ) == pdTRUE )
     {
   Humidity_Temper->GetHumidity(&humidity);
   Humidity_Temper->GetTemperature(&temperature);
@@ -188,7 +201,7 @@ void TaskTemperature(void *pvParameters)  // This is a task.
   Serial.println(humidity);
   
   }
-  xSemaphoreGive( blockly_farm_sem );
+  xSemaphoreGive( dht_sem );
    long now1 = millis();
     if (now1 - lastMsg1 > 2000) {
     lastMsg1 = now1;
@@ -214,16 +227,16 @@ void TaskSoilMoisture(void *pvParameters)  // This is a task.
  
   for (;;) // A Task shall never return or exit.
   {
-    if ( xSemaphoreTake( blockly_farm_sem, ( TickType_t ) 5 ) == pdTRUE )
+    if ( xSemaphoreTake( MS_sem, ( TickType_t ) 5 ) == pdTRUE )
     { 
      soil_moisture = analogRead(A1);
-     soil_moisture_perc = map(soil_moisture,300,1023,0,100);
+     soil_moisture_perc = map(soil_moisture,0,1023,0,100);
     
      Serial.print("soil moisture [%] = ");
      Serial.println(soil_moisture_perc);
       
   }
-  xSemaphoreGive( blockly_farm_sem );
+  xSemaphoreGive( MS_sem );
   long now1 = millis();
     if (now1 - lastMsg1 > 2000) {
     lastMsg1 = now1;
@@ -244,16 +257,16 @@ void TaskGaz( void *pvParameters __attribute__((unused)) )  // This is a Task.
 
   for (;;)
   {
-    if ( xSemaphoreTake( blockly_farm_sem, ( TickType_t ) 5 ) == pdTRUE )
+    if ( xSemaphoreTake( gas_sem, ( TickType_t ) 5 ) == pdTRUE )
     {
     // read the input on analog pin 0:
      float sensorGaz = analogRead(A0);
-    GazValue=map(sensorGaz,0,1023,0,100);
+    GazValue=map(sensorGaz,150,1023,0,100);
     Serial.print("Gaz = ");
     Serial.println(GazValue);
     
   }
-  xSemaphoreGive( blockly_farm_sem );
+  xSemaphoreGive( gas_sem );
    long now1 = millis();
     if (now1 - lastMsg1 > 2000) {
     lastMsg1 = now1;
